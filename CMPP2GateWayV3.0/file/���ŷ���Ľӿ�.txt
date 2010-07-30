@@ -1,0 +1,45 @@
+短信服务的接口:
+
+与短信发送有关的接口：
+需要外发的信息均在ebs_public.dbo.pub_pubsms 中
+	sms_id	bigint	8	0					记录唯一值
+	sms_database	varchar	20	1	短信来自于哪一个database
+	sms_comp	varchar	30	1			该短信对应的发送单位的名称
+	sms_sno	varchar	20	1				发送者手机号
+	sms_rno	varchar	20	1				接收者手机号
+	sms_text	varchar	6000	1		短信正文(可以是长短信，彩信或WAP内容)
+	sms_type	int	4	1						短信类别(0:普通短信 1:长短信 2:彩信 3:wap)
+	sms_date	datetime	8	1			短信产生的日期(预发短信根据日期来识别)
+	sms_status	varchar	10	1		短信当前状态(自定义)
+	sms_feecode	varchar	20	1		收费代码
+	sms_usertype	varchar	3	1		收费用户类别
+	sms_feetype	varchar	3	1			收费类型
+	sms_feevalue	varchar	20	1	收费值
+	sms_smsid	bigint	8	1				该短信与平台中的数据对应关系
+															在短信状态处理的时候，需要用到此值
+	sms_multi	int	4	1						是否是群发 0:群发 1:逐一发送
+	
+
+与短信接收有关的接口:
+短信状态的处理：
+  当收到短信状态的时候，调用平台的接口页面
+  http://xxx/sys/aspx/import.aspx?sqlname=imp_sms&mobile=手机号&smstext=状态值
+  
+  smstext:
+   前五个字符： 
+  		^SHT^：普通短信
+  		^LNG^：长短信
+  		^MMS^：彩信
+  		^WAP^：WAP(待用)
+  		
+   六位起为一固定串:^sndstatus
+   第十六位从：短信唯一值（平台中的值 pub_pubsms.sms_smsid）
+   ","
+   短信状态：
+   		0:已发送成功
+   		1:发送失败
+   		
+上行短信与平台的调用：
+  当收到短信状态的时候，调用平台的接口页面
+  http://xxx/sys/aspx/import.aspx?sqlname=imp_sms&mobile=手机号&smstext=短信内容
+   		
