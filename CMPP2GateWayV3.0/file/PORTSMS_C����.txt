@@ -1,0 +1,329 @@
+CHanmo_CMPP_Submit::CHanmo_CMPP_Submit(void)
+{
+	m_nSMSId = -1;
+}
+
+CHanmo_CMPP_Submit::CHanmo_CMPP_Submit(int nTelCount,CString sContent, UINT nSequenceID)
+{
+	m_nSMSId = -1;
+
+
+	//参数默认值
+	m_nMsg_Id = 0;		//信息标识，由SP侧短信网关本身产生，本处填空。	可填写为数据库表中sms_id字段值
+	m_nPk_total = 1;				//相同Msg_Id的信息总条数，从1开始
+	m_nPk_number = 1;				//相同Msg_Id的信息序号，从1开始
+	m_nRegistered_Delivery = 1;		//是否要求返回状态确认报告：
+									/*	0：不需要
+										1：需要
+										2：产生SMC话单*/
+	m_nMsg_level = 1;				//信息级别
+	m_sService_Id = "MYN2119901";	//业务类型，是数字、字母和符号的组合。
+	m_nFee_UserType = 2;			//应从数据库表中sms_usertype字段值 计费用户类型字段	
+									/*	0：对目的终端MSISDN计费；
+										1：对源终端MSISDN计费；
+										2：对SP计费;
+										3：表示本字段无效，对谁计费参见Fee_terminal_Id字段。*/
+	m_sFee_terminal_Id = "";		//被计费用户的号码
+	m_nTP_pId = 0;					//GSM协议类型
+	m_nTP_udhi = 0;					//GSM协议类型
+	m_nMsg_Fmt = 15;				//信息格式
+									/*	0：ASCII串
+										3：短信写卡操作
+										4：二进制信息
+										8：UCS2编码
+										15：含GB汉字*/
+	m_sMsg_src = "425593";			//信息内容来源	配置文件
+	m_sFeeType = "02";				//资费类别	sms_feetype字段
+									/*	01：对“计费用户号码”免费
+										02：对“计费用户号码”按条计信息费
+										03：对“计费用户号码”按包月收取信息费
+										04：对“计费用户号码”的信息费封顶
+										05：对“计费用户号码”的收费是由SP实现*/
+	m_sFeeCode = "10";				//资费代码（以分为单位）	sms_feevalue字段
+	m_sValId_Time = GetTimeMMDDHHMMSS("+2H") + "032+";		//存活有效期
+	m_sAt_Time = GetTimeMMDDHHMMSS() + "032+";				//定时发送时间
+	m_sSrc_Id = "106573488510";		//源号码 SP的服务代码或前缀为服务代码的长号码, 网关将该号码完整的填到SMPP协议Submit_SM消息相应的source_addr字段，该号码最终在用户手机上显示为短消息的主叫号码
+	m_sDest_terminal_Id = "";	//目标号码	接收短信的MSISDN号码
+	m_nDestUsr_tl = nTelCount;		//接收信息的用户数量(小于100个用户)
+	m_sMsg_Content = sContent;		//信息内容 sms_text
+	m_nMsg_Length = m_sMsg_Content.GetLength();	//信息长度(Msg_Fmt值为0时：<160个字节；其它<=140个字节)
+
+	if (m_eSMSType == MSG_PORT)
+	{
+		m_nTP_pId = 1;					//GSM协议类型
+		m_nTP_udhi = 1;					//GSM协议类型
+		m_nMsg_Fmt = 8;					//信息格式 端口短信必须为8
+
+		m_nMsg_Length *= 2;
+		m_nMsg_Length += 7;
+	}
+	else if (m_eSMSType == MSG_NORMAL)
+	{
+		if (m_nMsg_Fmt == 8)
+		{
+			m_nMsg_Length *= 2;
+		}
+	}
+
+	FromPara(CMPP_HEAD_SIZE + 126 + 21 * m_nDestUsr_tl + m_nMsg_Length,CMPP_SUBMIT,nSequenceID);
+}
+
+CHanmo_CMPP_Submit::~CHanmo_CMPP_Submit(void)
+{
+}
+
+HANMO_STRUCT_BLOB* CHanmo_CMPP_Submit::GetByte(CString sMsgContent,int nCount,int nCurIndex,int nMsgID)
+{
+	int nPackSize = 0;//CMPP_HEAD_SIZE + 126 + 21 * m_nDestUsr_tl + m_nMsg_Length;
+
+	int nMsgLength = sMsgContent.GetLength();
+	if (m_eSMSType == MSG_PORT)
+	{
+		m_nTP_pId = 1;					//GSM协议类型
+		m_nTP_udhi = 1;					//GSM协议类型
+		m_nMsg_Fmt = 8;					//信息格式 端口短信必须为8
+
+		CString sMessge8 = to_UCS2(sMsgContent,sMsgContent.GetLength());
+		nMsgLength = sMessge8.GetLength();
+		nMsgLength += 7;
+	}
+	else if (m_eSMSType == MSG_LONG)
+	{
+		//长短信
+		m_nTP_pId = 1;					//GSM协议类型
+		m_nTP_udhi = 1;					//GSM协议类型
+		m_nMsg_Fmt = 8;					//信息格式 端口短信必须为8
+
+		CString sMessge8 = to_UCS2(sMsgContent,sMsgContent.GetLength());
+		nMsgLength = sMessge8.GetLength();
+		nMsgLength += 6;
+
+		m_nPk_total = nCount;
+		m_nPk_number = nCurIndex;
+	}
+	else if (m_eSMSType == MSG_NORMAL)
+	{
+		if (nCount > 1)
+		{
+			//长短信
+			m_nTP_pId = 1;					//GSM协议类型
+			m_nTP_udhi = 1;					//GSM协议类型
+			m_nMsg_Fmt = 8;					//信息格式 端口短信必须为8
+
+			CString sMessge8 = to_UCS2(sMsgContent,sMsgContent.GetLength());
+			nMsgLength = sMessge8.GetLength();
+			nMsgLength += 6;
+
+			m_nPk_total = nCount;
+			m_nPk_number = nCurIndex;
+		}
+		else
+		{
+			if (m_nMsg_Fmt == 8)
+			{
+				CString sMessge8 = to_UCS2(sMsgContent,sMsgContent.GetLength());
+				nMsgLength = sMessge8.GetLength();
+			}
+		}
+	}
+
+	nPackSize = CMPP_HEAD_SIZE + 126 + 21 * m_nDestUsr_tl + nMsgLength;
+
+	BYTE* pBuffer = (BYTE*)malloc(nPackSize);
+
+	m_nLength = nPackSize;
+	BYTE* pHead = CHanmo_CMPP_Head::GetByte();
+	memset(pBuffer,0,nPackSize);
+	memcpy(pBuffer,pHead,CMPP_HEAD_SIZE);
+	free(pHead);
+
+	UINT nOffset = CMPP_HEAD_SIZE;
+	memcpy(pBuffer + nOffset,&m_nMsg_Id,8);
+	nOffset += 8;
+	UINT nPk_total = htonl(m_nPk_total);
+	memcpy(pBuffer + nOffset,&m_nPk_total,1);
+	nOffset += 1;
+	UINT nPk_number = htonl(m_nPk_number);
+	memcpy(pBuffer + nOffset,&m_nPk_number,1);
+	nOffset += 1;
+	UINT nRegistered_Delivery = htonl(m_nRegistered_Delivery);
+	memcpy(pBuffer + nOffset,&m_nRegistered_Delivery,1);
+	nOffset += 1;
+	UINT nMsg_level = htonl(m_nMsg_level);
+	memcpy(pBuffer + nOffset,&m_nMsg_level,1);
+	nOffset += 1;
+	memcpy(pBuffer + nOffset,(char*)(LPCSTR)m_sService_Id,10);
+	nOffset += 10;
+	UINT nFee_UserType = htonl(m_nFee_UserType);
+	memcpy(pBuffer + nOffset,&m_nFee_UserType,1);
+	nOffset += 1;
+	memcpy(pBuffer + nOffset,(char*)(LPCSTR)m_sFee_terminal_Id,m_sFee_terminal_Id.GetLength());
+	nOffset += 21;
+	UINT nTP_pId = htonl(m_nTP_pId);
+	memcpy(pBuffer + nOffset,&m_nTP_pId,1);
+	nOffset += 1;
+	UINT nTP_udhi = htonl(m_nTP_udhi);
+	memcpy(pBuffer + nOffset,&m_nTP_udhi,1);
+	nOffset += 1;
+	UINT nMsg_Fmt = htonl(m_nMsg_Fmt);
+	memcpy(pBuffer + nOffset,&m_nMsg_Fmt,1);
+	nOffset += 1;
+	memcpy(pBuffer + nOffset,(char*)(LPCSTR)m_sMsg_src,m_sMsg_src.GetLength());
+	nOffset += 6;
+	memcpy(pBuffer + nOffset,(char*)(LPCSTR)m_sFeeType,m_sFeeType.GetLength());
+	nOffset += 2;
+	memcpy(pBuffer + nOffset,(char*)(LPCSTR)m_sFeeCode,m_sFeeCode.GetLength());
+	nOffset += 6;
+	memcpy(pBuffer + nOffset,(char*)(LPCSTR)m_sValId_Time,m_sValId_Time.GetLength());
+	nOffset += 17;
+	memcpy(pBuffer + nOffset,(char*)(LPCSTR)m_sAt_Time,m_sAt_Time.GetLength());
+	nOffset += 17;
+	memcpy(pBuffer + nOffset,(char*)(LPCSTR)m_sSrc_Id,m_sSrc_Id.GetLength());
+	nOffset += 21;
+	UINT nDestUsr_tl = htonl(m_nDestUsr_tl);
+	memcpy(pBuffer + nOffset,&m_nDestUsr_tl,1);
+	nOffset += 1;
+
+	char* pDestTerminalID = (char*)malloc(21 * m_nDestUsr_tl);
+	memset(pDestTerminalID,0,21 * m_nDestUsr_tl);
+	for (int i = 0 ; i < m_TelNoArray.GetSize() ; i++)
+	{
+		memcpy(pDestTerminalID + i * 21,(char*)(LPCSTR)m_TelNoArray.GetAt(i),m_TelNoArray.GetAt(i).GetLength());
+		//memcpy(pDestTerminalID,(char*)(LPCSTR)m_sDest_terminal_Id,m_sDest_terminal_Id.GetLength());
+	}
+
+	memcpy(pBuffer + nOffset,pDestTerminalID,21 * m_nDestUsr_tl);
+	nOffset += 21 * m_nDestUsr_tl;
+	//UINT nMsg_Length = htonl(nMsgLength);
+	memcpy(pBuffer + nOffset,&nMsgLength,1);
+	nOffset += 1;
+
+	if (m_eSMSType == MSG_PORT)
+	{
+		//gsm协议头
+		BYTE tp_udhiHead[7];
+		tp_udhiHead[0] = 0x06;
+		tp_udhiHead[1] = 0x05;
+		tp_udhiHead[2] = 0x04;
+
+		tp_udhiHead[3] = 0x0A;
+		tp_udhiHead[4] = 0x01;
+		tp_udhiHead[5] = 0x01;		//
+		tp_udhiHead[6] = 0x01;		//发送方端口号
+		
+		tp_udhiHead[3] = (byte) ((m_nFarPort >> 8) & 0xFF);
+		tp_udhiHead[4] = (byte) (m_nFarPort & 0xFF);
+		tp_udhiHead[5] = (byte) ((m_nLocalPort >> 8) & 0xFF);
+		tp_udhiHead[6] = (byte) (m_nLocalPort & 0xFF);
+
+		memcpy(pBuffer + nOffset,tp_udhiHead,7); 
+		nOffset += 7;
+
+		if (m_nMsg_Fmt == 8)
+		{
+			CString sMessge8 = to_UCS2(sMsgContent,sMsgContent.GetLength());
+			memcpy(pBuffer + nOffset,(char*)(LPCSTR)sMessge8,sMessge8.GetLength());
+			nOffset += sMessge8.GetLength();
+		}
+		else
+		{
+			memcpy(pBuffer + nOffset,(char*)(LPCSTR)sMsgContent,nMsgLength - 7);
+			nOffset += nMsgLength - 7;
+		}
+	}
+	else if (nCount > 1 || m_eSMSType == MSG_LONG)
+	{
+		//长短信
+		//gsm协议头
+		BYTE tp_udhiHead[6];
+		tp_udhiHead[0] = 0x05;
+		tp_udhiHead[1] = 0x00;
+		tp_udhiHead[2] = 0x03;
+
+		tp_udhiHead[3] = 0x0A;
+		tp_udhiHead[4] = 0x01;		//长短信总数
+		tp_udhiHead[5] = 0x01;		//当前短信索引
+
+		tp_udhiHead[3] = (byte)((nMsgID >>  0) & 0xff);
+		tp_udhiHead[4] = (byte)((nCount >>  0) & 0xff);
+		tp_udhiHead[5] = (byte)((nCurIndex >>  0) & 0xff);
+
+		memcpy(pBuffer + nOffset,tp_udhiHead,6); 
+		nOffset += 6;
+
+		if (m_nMsg_Fmt == 8)
+		{
+			CString sMessge8 = to_UCS2(sMsgContent,sMsgContent.GetLength());
+			memcpy(pBuffer + nOffset,(char*)(LPCSTR)sMessge8,sMessge8.GetLength());
+			nOffset += sMessge8.GetLength();
+		}
+		else
+		{
+			memcpy(pBuffer + nOffset,(char*)(LPCSTR)sMsgContent,nMsgLength - 6);
+			nOffset += nMsgLength - 6;
+		}
+	}
+	else
+	{
+		memcpy(pBuffer + nOffset,(char*)(LPCSTR)sMsgContent,nMsgLength);
+		nOffset += nMsgLength;
+	}
+	
+	memcpy(pBuffer + nOffset,(char*)(LPCSTR)m_sReserve,8);
+
+	free(pDestTerminalID);
+
+	HANMO_STRUCT_BLOB* pBlob = new HANMO_STRUCT_BLOB(pBuffer,nPackSize);
+	return pBlob;
+}
+
+void CHanmo_CMPP_Submit::GetByte(CArray <HANMO_STRUCT_BLOB*,HANMO_STRUCT_BLOB*>* pBufArray,int nMsgID)
+{
+	int nSingleMsgLength = (70 - 6) * 2;
+	if (m_eSMSType == MSG_PORT)
+	{
+		nSingleMsgLength -= 6;
+	}
+
+	int nCounter = 0;
+	int nCharCounter = 0;
+	int nPos = 0;
+
+	CArray <CString ,CString> strArray;
+	CString sTemp;
+	for (int i = 0 ; i < m_sMsg_Content.GetLength() ; i++)
+	{
+		if ((unsigned char)m_sMsg_Content.GetAt(i) >= 0xA1)
+		{
+			nCounter += 2;
+			nCharCounter += 2;
+			i++;
+		}
+		else
+		{
+			nCounter += 2;
+			nCharCounter += 1;
+		}
+
+		if (nCounter == nSingleMsgLength)
+		{
+			sTemp = m_sMsg_Content.Mid(nPos,nCharCounter);
+			strArray.Add(sTemp);
+			nPos += nCharCounter;
+			nCharCounter = 0;
+			nCounter = 0;
+		}
+	}
+
+	sTemp = m_sMsg_Content.Mid(nPos,nCharCounter);
+	strArray.Add(sTemp);
+
+	for (int i = 0 ; i < strArray.GetSize() ; i++)
+	{
+		HANMO_STRUCT_BLOB* pBlob = GetByte(strArray.GetAt(i),strArray.GetSize(),i + 1,nMsgID);
+		if (pBlob != NULL)
+		{
+			pBufArray->Add(pBlob);
+		}
+	}
+}
